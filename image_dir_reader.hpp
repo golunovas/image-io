@@ -13,26 +13,19 @@
 #include <boost/lockfree/queue.hpp>
 #include <boost/algorithm/string.hpp>
 
-namespace fs = boost::filesystem;
+#include "structures.hpp"
 
-const std::set<std::string> IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"};
+namespace fs = boost::filesystem;
 
 namespace image_io {
 
-struct ImageData {
-	std::string imagePath;
-	cv::Mat img;
-	ImageData() {}
-	ImageData(const std::string& imagePath, cv::Mat img) : imagePath(imagePath), img(img) { }
-	ImageData(const ImageData& other) { imagePath = other.imagePath; img = other.img; }
-	ImageData& operator=(const ImageData& other) { imagePath = other.imagePath; img = other.img; return *this; }
-};
+const std::set<std::string> IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"};
 
 class ImageDirReader {
 private:
 	size_t readCount_;
 	boost::lockfree::queue<ImageData*, boost::lockfree::fixed_sized<true>> imageQueue_;
-	bool isTerminated;
+	bool isTerminated_;
 	std::thread imageReaderThread_;
 	std::vector<std::string> imagePaths_;
 	void loadImages();
@@ -52,13 +45,13 @@ public:
 	const std::vector<std::string>& getImagePaths() const;
 };
 
-inline ImageDirReader::ImageDirReader(const std::string& imageDir, size_t queueSize) : readCount_(0), imageQueue_(queueSize), isTerminated(false) {
+inline ImageDirReader::ImageDirReader(const std::string& imageDir, size_t queueSize) : readCount_(0), imageQueue_(queueSize), isTerminated_(false) {
 	loadDirList(imageDir);
 	imageReaderThread_ = std::move(std::thread(&ImageDirReader::loadImages, this));
 }
 
 inline ImageDirReader::~ImageDirReader() {
-	isTerminated = true;
+	isTerminated_ = true;
 	imageReaderThread_.join();
 }
 
@@ -92,7 +85,7 @@ inline void ImageDirReader::loadImages() {
 			img = cv::imread(imagePath);
 			imageData = new ImageData(imagePath, img);
 		} catch (...) { }
-		while (!isTerminated && !imageQueue_.push(imageData)) { }
+		while (!isTerminated_ && !imageQueue_.push(imageData)) { }
 	}
 }
 
